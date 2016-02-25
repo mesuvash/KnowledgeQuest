@@ -50,7 +50,6 @@ class ThreeLayerConvNet(object):
         # of the output affine layer.                                              #
         #######################################################################
 
-
         self.conv_param = {'stride': 1, 'pad': (filter_size - 1) / 2}
 
         self.pool_param = {'pool_height': 2, 'pool_width': 2, 'stride': 2}
@@ -60,18 +59,20 @@ class ThreeLayerConvNet(object):
         conv_hidden_W = (W - WW + 2 * pad) / stride + 1
         conv_hidden_H = (H - HH + 2 * pad) / stride + 1
 
-        #TODO: update the pool size reduction according to pool_param
+        # TODO: update the pool size reduction according to pool_param
         max_pool_hidden_W = conv_hidden_W / 2.0
         max_pool_hidden_H = conv_hidden_H / 2.0
 
         self.params["W1"] = np.random.randn(F, C, HH, WW) * weight_scale
         self.params["b1"] = np.zeros(F)
 
-
-        self.params["W2"] = np.random.randn(hidden_dim, num_filters, max_pool_hidden_H, max_pool_hidden_W) * weight_scale
+        # self.params["W2"] = np.random.randn(hidden_dim, num_filters, max_pool_hidden_H, max_pool_hidden_W) * weight_scale
+        self.params["W2"] = np.random.randn(
+            num_filters * max_pool_hidden_H * max_pool_hidden_W, hidden_dim) * weight_scale
         self.params["b2"] = np.zeros(hidden_dim)
 
-        self.params["W3"] = np.random.randn(hidden_dim, num_classes) * weight_scale
+        self.params["W3"] = np.random.randn(
+            hidden_dim, num_classes) * weight_scale
         self.params["b3"] = np.zeros(num_classes)
 
         #######################################################################
@@ -105,12 +106,18 @@ class ThreeLayerConvNet(object):
         # conv_out, conv_cache = conv_forward_im2col(X, W1, b1, conv_param)
         # conv_relu_out, conv_relu_cache = conv_relu_forward(X, W1, b1, conv_param)
         # maxpool_out, maxpool_cache = max_pool_forward_fast(conv_relu_out, pool_param)
-        conv_relu_pool_out, conv_relu_pool_cache = conv_relu_pool_forward(X, W1, b1, conv_param, pool_param)
+        # affine1_out, affine1_cache = conv_forward_im2col(conv_relu_pool_out, W2, b2,  {'stride': 1, 'pad':0})
+        # relu1_out, relu1_cache = relu_forward(affine1_out)
+        # affine_relu_out, affine_relu_cache = affine_relu_forward(conv_relu_pool_out_flatten, W2, b2)
 
-        affine1_out, affine1_cache = conv_forward_im2col(conv_relu_pool_out, W2, b2,  {'stride': 1, 'pad':0})
-        relu1_out, relu1_cache = relu_forward(affine1_out)
+        conv_relu_pool_out, conv_relu_pool_cache = conv_relu_pool_forward(
+            X, W1, b1, conv_param, pool_param)
+        conv_relu_pool_out_flatten = conv_relu_pool_out.reshape(
+            conv_relu_pool_out.shape[0], -1)
+        affine1_relu_out, affine1_relu_cache = affine_relu_forward(
+            conv_relu_pool_out_flatten, W2, b2)
 
-        affine2_out, affine2_cache = affine_forward(relu1_out, W3, b3)
+        affine2_out, affine2_cache = affine_forward(affine1_relu_out, W3, b3)
         scores = affine2_out
 
         #######################################################################
@@ -122,30 +129,30 @@ class ThreeLayerConvNet(object):
 
         loss, grads = 0, {}
         loss, dout = softmax_loss(affine2_out, y)
-        loss += self.reg * 0.5 * ( (W1 ** 2).sum() + (W2 ** 2).sum() + (W3 ** 2).sum())
+        loss += self.reg * 0.5 * \
+            ((W1 ** 2).sum() + (W2 ** 2).sum() + (W3 ** 2).sum())
 
-        grads["W3"] = np.squeeze(affine2_cache[0]).T.dot(dout) + self.reg *  W3
+        grads["W3"] = affine2_cache[0].T.dot(dout) + self.reg * W3
         grads["b3"] = dout.sum(axis=0)
         delta = dout.dot(W3.T)
-        #######################################################################
-        # TODO: Implement the backward pass for the three-layer convolutional net, #
-        # storing the loss and gradients in the loss and grads variables. Compute  #
-        # data loss using softmax, and make sure that grads[k] holds the gradients #
-        # for self.params[k]. Don't forget to add L2 regularization!               #
-        #######################################################################
-        dx = relu_backward(delta, np.squeeze(relu1_cache))
-        dx = dx.reshape(1,1, dx.shape[0], -1)
-        dx, dw2, db2 = conv_backward_im2col(dx, affine1_cache)
-        grads["W2"] = dw2 + self.reg *  W2
+        # #######################################################################
+        # # TODO: Implement the backward pass for the three-layer convolutional net, #
+        # # storing the loss and gradients in the loss and grads variables. Compute  #
+        # # data loss using softmax, and make sure that grads[k] holds the gradients #
+        # # for self.params[k]. Don't forget to add L2 regularization!               #
+        # #######################################################################
+
+        dx, dw2, db2 = affine_relu_backward(delta, affine1_relu_cache)
+        grads["W2"] = dw2 + self.reg * W2
         grads["b2"] = db2
 
-        d1, dw1, db1 = conv_relu_pool_backward( dx , conv_relu_pool_cache)
-        grads["W1"] = dw1 + self.reg *  W1
+        dx = dx.reshape(conv_relu_pool_out.shape)
+
+        d1, dw1, db1 = conv_relu_pool_backward(dx, conv_relu_pool_cache)
+        grads["W1"] = dw1 + self.reg * W1
         grads["b1"] = db1
         #######################################################################
         #                             END OF YOUR CODE                             #
         #######################################################################
 
         return loss, grads
-
-pass
