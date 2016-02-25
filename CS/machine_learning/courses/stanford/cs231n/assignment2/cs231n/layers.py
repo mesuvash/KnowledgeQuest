@@ -268,10 +268,10 @@ def batchnorm_backward_alt(dout, cache):
     # single statement; our implementation fits on a single 80-character line.  #
     ##########################################################################
     # print dx
-    x_sub_mean = x - batch_mean
+    x_minus_mean = x - batch_mean
     dx = (gamma * (batch_var ** -0.5) / N) * ((N * dout) - dout.sum(axis=0) -
-                                              (((x_sub_mean) * (batch_var ** -1)) *
-                                               (dout * (x_sub_mean)).sum(axis=0)))
+                                              (((x_minus_mean) * (batch_var ** -1)) *
+                                               (dout * (x_minus_mean)).sum(axis=0)))
     ##########################################################################
     #                             END OF YOUR CODE                              #
     ##########################################################################
@@ -560,8 +560,6 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     - out: Output data, of shape (N, C, H, W)
     - cache: Values needed for the backward pass
     """
-    out, cache = None, None
-
     ##########################################################################
     # TODO: Implement the forward pass for spatial batch normalization.         #
     #                                                                           #
@@ -569,7 +567,11 @@ def spatial_batchnorm_forward(x, gamma, beta, bn_param):
     # version of batch normalization defined above. Your implementation should  #
     # be very short; ours is less than five lines.                              #
     ##########################################################################
-    pass
+    N, C, H, W = x.shape
+    x_T = x.transpose((0,2,3,1))
+    x_flat = x_T.reshape(-1, C)
+    out, cache = batchnorm_forward(x_flat, gamma, beta, bn_param)
+    out = out.reshape((N,H,W,C)).transpose(0,3,1,2)
     ##########################################################################
     #                             END OF YOUR CODE                              #
     ##########################################################################
@@ -590,7 +592,6 @@ def spatial_batchnorm_backward(dout, cache):
     - dgamma: Gradient with respect to scale parameter, of shape (C,)
     - dbeta: Gradient with respect to shift parameter, of shape (C,)
     """
-    dx, dgamma, dbeta = None, None, None
 
     ##########################################################################
     # TODO: Implement the backward pass for spatial batch normalization.        #
@@ -599,7 +600,11 @@ def spatial_batchnorm_backward(dout, cache):
     # version of batch normalization defined above. Your implementation should  #
     # be very short; ours is less than five lines.                              #
     ##########################################################################
-    pass
+    N, C, H, W = dout.shape
+    dout_T = dout.transpose((0,2,3,1))
+    dout_flat = dout_T.reshape(-1, C)
+    dx, dgamma, dbeta = batchnorm_backward(dout_flat, cache)
+    dx = dx.reshape((N,H,W,C)).transpose(0,3,1,2)
     ##########################################################################
     #                             END OF YOUR CODE                              #
     ##########################################################################
